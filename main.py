@@ -9,6 +9,10 @@ import socket
 import os
 import time
 from ping3 import ping, verbose_ping
+import dns.resolver
+import dns.zone
+import dns.query
+import dns.name
 
 logging.basicConfig(level=logging.INFO, format='\033[94m%(asctime)s - %(levelname)s - %(message)s\033[0m', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('discord')
@@ -215,5 +219,62 @@ async def convert(ctx, number: str, target_type: str = discord.Option(
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande /convert: {e}')
         await ctx.respond(f"Une erreur s'est produite lors de la conversion de `{number}`.")
+
+@bot.slash_command(name="decompose_dns", description="Afficher les enregistrements DNS d'un nom de domaine.")
+async def decompose_dns(ctx, domain: str):
+    logger.info(f'Commande utilisée: /decompose_dns par {ctx.author.name} ({ctx.author.id}) pour le domaine {domain}')
+    
+    try:
+        records = []
+
+        try:
+            a_records = dns.resolver.resolve(domain, 'A')
+            for record in a_records:
+                records.append(f"{domain} A: {record.address}")
+        except dns.resolver.NoAnswer:
+            records.append(f"Aucun enregistrement A trouvé pour {domain}")
+        except Exception as e:
+            logger.error(f'Erreur lors de la récupération des enregistrements A pour {domain}: {e}')
+
+        try:
+            cname_records = dns.resolver.resolve(domain, 'CNAME')
+            for record in cname_records:
+                records.append(f"{domain} CNAME: {record.target}")
+        except dns.resolver.NoAnswer:
+            records.append(f"Aucun enregistrement CNAME trouvé pour {domain}")
+        except Exception as e:
+            logger.error(f'Erreur lors de la récupération des enregistrements CNAME pour {domain}: {e}')
+
+        try:
+            mx_records = dns.resolver.resolve(domain, 'MX')
+            for record in mx_records:
+                records.append(f"{domain} MX: {record.exchange} (Priorité: {record.preference})")
+        except dns.resolver.NoAnswer:
+            records.append(f"Aucun enregistrement MX trouvé pour {domain}")
+        except Exception as e:
+            logger.error(f'Erreur lors de la récupération des enregistrements MX pour {domain}: {e}')
+
+        try:
+            txt_records = dns.resolver.resolve(domain, 'TXT')
+            for record in txt_records:
+                records.append(f"{domain} TXT: {' '.join(record.strings)}")
+        except dns.resolver.NoAnswer:
+            records.append(f"Aucun enregistrement TXT trouvé pour {domain}")
+        except Exception as e:
+            logger.error(f'Erreur lors de la récupération des enregistrements TXT pour {domain}: {e}')
+
+        embed = discord.Embed(
+            title=f"Enregistrements DNS pour `{domain}`",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(name="Enregistrements DNS", value='\n'.join(records) if records else "Aucun enregistrement trouvé", inline=False)
+        embed.set_footer(text="Certaines informations peuvent être incomplètes en raison des restrictions d'accès aux zones DNS.")
+
+        await ctx.respond(embed=embed)
+
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /decompose_dns: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors de la récupération des enregistrements DNS pour `{domain}`.")
 
 bot.run("")
