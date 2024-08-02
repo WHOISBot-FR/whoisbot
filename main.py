@@ -1,4 +1,5 @@
 import discord
+import ping3
 from discord.ext import commands
 import whois
 import logging
@@ -6,6 +7,8 @@ import subprocess
 import socket
 import os
 import time
+from ping3 import ping, verbose_ping
+
 
 logging.basicConfig(level=logging.INFO, format='\033[94m%(asctime)s - %(levelname)s - %(message)s\033[0m', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('discord')
@@ -83,11 +86,8 @@ async def ping_ip(ctx, target: str):
             ip = target
             domain_resolved = None
 
-        param = '-n' if os.name == 'nt' else '-c'
-        command = ['ping', param, '1', ip]
-
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        success = result.returncode == 0
+        response_time = ping(ip)
+        success = response_time is not None
 
         embed = discord.Embed(
             title="Résultat du Ping",
@@ -97,8 +97,10 @@ async def ping_ip(ctx, target: str):
         if domain_resolved:
             embed.add_field(name="Nom de domaine", value=f"`{domain_resolved}`", inline=False)
         embed.add_field(name="Statut", value="Réponse reçue" if success else "Pas de réponse", inline=False)
-        embed.set_footer(text="Résultat du ping effectué par le bot.")
+        if not success:
+            embed.add_field(name="Erreur", value="Pas de réponse du serveur", inline=False)
 
+        embed.set_footer(text="Résultat du ping effectué par le bot.")
         await ctx.respond(embed=embed)
 
     except Exception as e:
