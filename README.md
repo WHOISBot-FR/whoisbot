@@ -21,3 +21,5 @@ Le code de WHOISBot a été testé sur 3 environnements différents :
 - **Pterodactyl (Docker)**
 - **Python sur PC Windows**
 - **Python sur environnement Linux (Ubuntu)**
+
+Merci !
