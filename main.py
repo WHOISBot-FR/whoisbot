@@ -5,6 +5,7 @@ import logging
 import subprocess
 import socket
 import os
+import time
 
 logging.basicConfig(level=logging.INFO, format='\033[94m%(asctime)s - %(levelname)s - %(message)s\033[0m', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('discord')
@@ -12,6 +13,10 @@ logger = logging.getLogger('discord')
 intents = discord.Intents.default()
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    logger.info(f'App online - Name : {bot.user.name}')
 
 @bot.slash_command(name="whois", description="Obtenir des informations WHOIS pour un domaine.")
 async def whois_command(ctx, domain: str):
@@ -99,5 +104,23 @@ async def ping_ip(ctx, target: str):
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande /ping_ip: {e}')
         await ctx.respond(f"Une erreur s'est produite lors du ping de `{target}`.")
+
+@bot.slash_command(name="ping_me", description="Obtenir le ping du bot.")
+async def ping_me(ctx):
+    start_time = time.time()
+    message = await ctx.respond("Calcul du ping...")
+    end_time = time.time()
+    latency = bot.latency * 1000  
+    response_time = (end_time - start_time) * 1000  
+
+    embed = discord.Embed(
+        title="Ping du Bot",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="Latence de l'API", value=f"{latency:.2f} ms", inline=False)
+    embed.add_field(name="Temps de réponse", value=f"{response_time:.2f} ms", inline=False)
+    embed.set_footer(text="Le temps de réponse peut varier en fonction de la charge du bot.")
+
+    await message.edit(content=None, embed=embed)
 
 bot.run("")
