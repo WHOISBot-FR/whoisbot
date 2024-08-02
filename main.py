@@ -1,5 +1,6 @@
 import discord
 import ping3
+import ipaddress
 from discord.ext import commands
 import whois
 import logging
@@ -8,7 +9,6 @@ import socket
 import os
 import time
 from ping3 import ping, verbose_ping
-
 
 logging.basicConfig(level=logging.INFO, format='\033[94m%(asctime)s - %(levelname)s - %(message)s\033[0m', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('discord')
@@ -124,5 +124,96 @@ async def ping_me(ctx):
     embed.set_footer(text="Le temps de réponse peut varier en fonction de la charge du bot.")
 
     await message.edit(content=None, embed=embed)
+
+@bot.slash_command(name="decompose_ip", description="Décompose une adresse IP en octets, binaire et hexadécimal.")
+async def decompose_ip(ctx, ip: str):
+    logger.info(f'Commande utilisée: /decompose_ip par {ctx.author.name} ({ctx.author.id}) pour l\'IP {ip}')
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        octets = ip_obj.exploded.split(':') if ip_obj.version == 6 else ip_obj.exploded.split('.')
+        
+        if ip_obj.version == 4:
+            binary_representation = '.'.join(f'{int(octet):08b}' for octet in octets)
+            hex_representation = '.'.join(f'{int(octet):02X}' for octet in octets)
+        else:
+            binary_representation = ':'.join(f'{int(segment, 16):016b}' for segment in octets)
+            hex_representation = ':'.join(f'{segment.upper()}' for segment in octets)
+
+        embed = discord.Embed(
+            title="Décomposition de l'adresse IP",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Adresse IP", value=f"`{ip}`", inline=False)
+        embed.add_field(name="Nombre d'octets", value=f"`{len(octets)}`", inline=False)
+        embed.add_field(name="Représentation binaire", value=f"`{binary_representation}`", inline=False)
+        embed.add_field(name="Représentation hexadécimale", value=f"`{hex_representation}`", inline=False)
+        embed.set_footer(text="Décomposition effectuée par le bot.")
+
+        await ctx.respond(embed=embed)
+
+    except ValueError as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /decompose_ip: {e}')
+        await ctx.respond(f"Adresse IP invalide: `{ip}`.")
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /decompose_ip: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors de la décomposition de `{ip}`.")
+
+@bot.slash_command(name="convert", description="Convertir un nombre entre différents systèmes de numération.")
+async def convert(ctx, number: str, target_type: str = discord.Option(
+    choices=[
+        discord.OptionChoice(name="Décimal", value="décimal"),
+        discord.OptionChoice(name="Octal", value="octal"),
+        discord.OptionChoice(name="Binaire", value="binaire"),
+        discord.OptionChoice(name="Hexadécimal", value="hexadécimal")
+    ]
+)):
+    logger.info(f'Commande utilisée: /convert par {ctx.author.name} ({ctx.author.id}) pour le nombre {number} et le type cible {target_type}')
+    try:
+        valid_target_types = {"décimal", "octal", "binaire", "hexadécimal"}
+        
+        if target_type not in valid_target_types:
+            await ctx.respond("Type cible invalide. Utilisez `décimal`, `octal`, `binaire`, ou `hexadécimal`.")
+            return
+
+        try:
+            if number.startswith("0b"):
+                base = 2
+                value = int(number, 2)
+            elif number.startswith("0o"):
+                base = 8
+                value = int(number, 8)
+            elif number.startswith("0x"):
+                base = 16
+                value = int(number, 16)
+            else:
+                value = int(number)
+                base = 10
+        except ValueError:
+            await ctx.respond(f"Nombre invalide : `{number}`.")
+            return
+
+        if target_type == "décimal":
+            result = str(value)
+        elif target_type == "octal":
+            result = oct(value)
+        elif target_type == "binaire":
+            result = bin(value)
+        elif target_type == "hexadécimal":
+            result = hex(value)
+
+        embed = discord.Embed(
+            title="Conversion de Nombre",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Nombre initial", value=f"`{number}`", inline=False)
+        embed.add_field(name="Format cible", value=f"`{target_type}`", inline=False)
+        embed.add_field(name="Résultat", value=f"`{result}`", inline=False)
+        embed.set_footer(text="Conversion effectuée par le bot.")
+
+        await ctx.respond(embed=embed)
+
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /convert: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors de la conversion de `{number}`.")
 
 bot.run("")
