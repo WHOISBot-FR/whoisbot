@@ -2,3 +2,4 @@ py-cord
 python-whois
 ping3
 dnspython
+asyncio
