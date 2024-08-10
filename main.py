@@ -8,6 +8,7 @@ import subprocess
 import socket
 import os
 import time
+import asyncio
 from ping3 import ping, verbose_ping
 import dns.resolver
 import dns.zone
@@ -276,5 +277,42 @@ async def decompose_dns(ctx, domain: str):
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande /decompose_dns: {e}')
         await ctx.respond(f"Une erreur s'est produite lors de la récupération des enregistrements DNS pour `{domain}`.")
+
+@bot.slash_command(name="tracert", description="Trace le chemin vers une IP ou un nom de domaine donné.")
+async def tracert_command(ctx, target: str):
+    logger.info(f'Commande utilisée: /tracert par {ctx.author.name} ({ctx.author.id}) pour la cible {target}')
+    
+    try:
+        message = await ctx.respond(f"Exécution de la commande `tracert` vers `{target}`, cela peut prendre un moment...")
+
+        process = await asyncio.create_subprocess_exec(
+            'tracert', target,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        stdout, stderr = await process.communicate()
+
+        try:
+            output = stdout.decode('cp850')
+        except UnicodeDecodeError:
+            output = stdout.decode('utf-8', errors='replace')  
+        if process.returncode != 0:
+            output += f"\nUne erreur s'est produite lors de l'exécution de la commande tracert. Code de retour: {process.returncode}\n{stderr.decode('cp850')}"
+
+        if len(output) > 2000:
+            output = output[:1997] + "..."
+        
+        embed = discord.Embed(
+            title=f"Résultat du Tracert vers `{target}`",
+            description=f"```{output}```",
+            color=discord.Color.blue()
+        )
+
+        await message.edit_original_response(content=None, embed=embed)
+
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande tracert: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors de l'exécution de la commande tracert pour `{target}`.")
 
 bot.run("")
