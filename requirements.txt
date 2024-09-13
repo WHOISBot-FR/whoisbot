@@ -3,3 +3,4 @@ python-whois
 ping3
 dnspython
 asyncio
+psutil
