@@ -9,6 +9,8 @@ import socket
 import os
 import time
 import asyncio
+import socket
+import psutil
 from ping3 import ping, verbose_ping
 import dns.resolver
 import dns.zone
@@ -278,41 +280,54 @@ async def decompose_dns(ctx, domain: str):
         logger.error(f'Erreur lors de l\'exécution de la commande /decompose_dns: {e}')
         await ctx.respond(f"Une erreur s'est produite lors de la récupération des enregistrements DNS pour `{domain}`.")
 
-@bot.slash_command(name="tracert", description="Trace le chemin vers une IP ou un nom de domaine donné.")
-async def tracert_command(ctx, target: str):
-    logger.info(f'Commande utilisée: /tracert par {ctx.author.name} ({ctx.author.id}) pour la cible {target}')
-    
+@bot.slash_command(name="server_stats", description="Affiche l'utilisation actuelle de la CPU et de la RAM du serveur.")
+async def server_stats(ctx):
+    logger.info(f'Commande utilisée: /server_stats par {ctx.author.name} ({ctx.author.id})')
     try:
-        message = await ctx.respond(f"Exécution de la commande `tracert` vers `{target}`, cela peut prendre un moment...")
+        cpu_usage = psutil.cpu_percent(interval=1)
+        ram_usage = psutil.virtual_memory().percent
 
-        process = await asyncio.create_subprocess_exec(
-            'tracert', target,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+        embed = discord.Embed(title="Statistiques du serveur", color=discord.Color.blue())
+        embed.add_field(name="Utilisation CPU", value=f"{cpu_usage}%", inline=False)
+        embed.add_field(name="Utilisation RAM", value=f"{ram_usage}%", inline=False)
+        embed.set_footer(text="Ces informations sont mises à jour en temps réel.")
 
-        stdout, stderr = await process.communicate()
-
-        try:
-            output = stdout.decode('cp850')
-        except UnicodeDecodeError:
-            output = stdout.decode('utf-8', errors='replace')  
-        if process.returncode != 0:
-            output += f"\nUne erreur s'est produite lors de l'exécution de la commande tracert. Code de retour: {process.returncode}\n{stderr.decode('cp850')}"
-
-        if len(output) > 2000:
-            output = output[:1997] + "..."
-        
-        embed = discord.Embed(
-            title=f"Résultat du Tracert vers `{target}`",
-            description=f"```{output}```",
-            color=discord.Color.blue()
-        )
-
-        await message.edit_original_response(content=None, embed=embed)
-
+        await ctx.respond(embed=embed)
     except Exception as e:
-        logger.error(f'Erreur lors de l\'exécution de la commande tracert: {e}')
-        await ctx.respond(f"Une erreur s'est produite lors de l'exécution de la commande tracert pour `{target}`.")
+        logger.error(f'Erreur lors de l\'exécution de la commande /server_stats: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors de la récupération des statistiques du serveur.")
+
+@bot.slash_command(name="reverse_dns", description="Effectue un reverse DNS lookup pour une adresse IP.")
+async def reverse_dns(ctx, ip: str):
+    logger.info(f'Commande utilisée: /reverse_dns par {ctx.author.name} ({ctx.author.id}) pour l\'IP {ip}')
+    try:
+        domain = socket.gethostbyaddr(ip)
+        await ctx.respond(f"L'adresse IP `{ip}` est associée au domaine `{domain[0]}`.")
+    except socket.herror:
+        await ctx.respond(f"Aucun domaine trouvé pour l'adresse IP `{ip}`.")
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /reverse_dns: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors du reverse DNS lookup pour `{ip}`.")
+
+@bot.slash_command(name="scan_ports", description="Scanne les ports ouverts sur une adresse IP.")
+async def scan_ports(ctx, ip: str):
+    logger.info(f'Commande utilisée: /scan_ports par {ctx.author.name} ({ctx.author.id}) pour l\'IP {ip}')
+    await ctx.defer()  
+    try:
+        open_ports = []
+        for port in range(1, 1025):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.5)
+                result = sock.connect_ex((ip, port))
+                if result == 0:
+                    open_ports.append(port)
+
+        if open_ports:
+            await ctx.followup.send(f"Les ports ouverts sur `{ip}` sont : `{', '.join(map(str, open_ports))}`.")
+        else:
+            await ctx.followup.send(f"Aucun port ouvert détecté sur `{ip}`.")
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /scan_ports: {e}')
+        await ctx.followup.send(f"Une erreur s'est produite lors du scan des ports sur `{ip}`.")
 
 bot.run("")
