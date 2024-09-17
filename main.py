@@ -11,6 +11,7 @@ import time
 import asyncio
 import socket
 import psutil
+import requests
 from ping3 import ping, verbose_ping
 import dns.resolver
 import dns.zone
@@ -329,5 +330,46 @@ async def scan_ports(ctx, ip: str):
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande /scan_ports: {e}')
         await ctx.followup.send(f"Une erreur s'est produite lors du scan des ports sur `{ip}`.")
+
+@bot.slash_command(name="reverse_lookup", description="Trouver tous les domaines liés à une adresse IP.")
+async def reverse_lookup(ctx, ip: str):
+    logger.info(f'Commande utilisée: /reverse_lookup par {ctx.author.name} ({ctx.author.id}) pour l\'IP {ip}')
+    try:
+        domains = dns.resolver.resolve_reverse(ip)
+        embed = discord.Embed(title=f"Domaines associés à {ip}", description=f"Domaines : {', '.join(domains)}", color=discord.Color.blue())
+        await ctx.respond(embed=embed)
+    except Exception as e:
+        logger.error(f'Erreur lors de la commande /reverse_lookup: {e}')
+        embed = discord.Embed(title="Erreur", description=f"Erreur lors de la recherche DNS inverse pour `{ip}`.", color=discord.Color.red())
+        await ctx.respond(embed=embed)
+
+
+@bot.slash_command(name="http_version", description="Obtenir la version du serveur HTTP d'une URL.")
+async def http_version(ctx, url: str):
+    logger.info(f'Commande utilisée: /http_version par {ctx.author.name} ({ctx.author.id}) pour l\'URL {url}')
+    try:
+        response = requests.head(url)
+        server_version = response.headers.get('Server', 'Non disponible')
+        embed = discord.Embed(title=f"Version HTTP de {url}", description=f"Serveur : {server_version}", color=discord.Color.blue())
+        await ctx.respond(embed=embed)
+    except Exception as e:
+        logger.error(f'Erreur lors de la commande /http_version: {e}')
+        embed = discord.Embed(title="Erreur", description=f"Erreur lors de la récupération de la version HTTP pour `{url}`.", color=discord.Color.red())
+        await ctx.respond(embed=embed)
+
+
+@bot.slash_command(name="network_latency", description="Tester la latence réseau vers plusieurs serveurs cibles.")
+async def network_latency(ctx):
+    targets = ["8.8.8.8", "1.1.1.1", "9.9.9.9"]
+    results = []
+    for target in targets:
+        try:
+            result = ping(target)
+            results.append(f"{target} : {result} ms" if result else f"{target} : Aucun résultat")
+        except Exception as e:
+            results.append(f"{target} : Erreur")
+    
+    embed = discord.Embed(title="Résultats des tests de latence", description="\n".join(results), color=discord.Color.blue())
+    await ctx.respond(embed=embed)
 
 bot.run("")
