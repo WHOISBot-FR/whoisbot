@@ -4,3 +4,4 @@ ping3
 dnspython
 asyncio
 psutil
+requests
