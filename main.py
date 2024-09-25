@@ -9,7 +9,6 @@ import socket
 import os
 import time
 import asyncio
-import socket
 import psutil
 import requests
 from ping3 import ping, verbose_ping
@@ -91,8 +90,8 @@ async def ping_ip(ctx, target: str):
             ip = socket.gethostbyname(target)
             domain_resolved = target
         except socket.gaierror:
-            ip = target
-            domain_resolved = None
+            await ctx.respond(f"Erreur: Le nom de domaine ou l'adresse IP `{target}` est invalide ou introuvable.")
+            return
 
         response_time = ping(ip)
         success = response_time is not None
@@ -105,8 +104,11 @@ async def ping_ip(ctx, target: str):
         if domain_resolved:
             embed.add_field(name="Nom de domaine", value=f"`{domain_resolved}`", inline=False)
         embed.add_field(name="Statut", value="Réponse reçue" if success else "Pas de réponse", inline=False)
-        if not success:
-            embed.add_field(name="Erreur", value="Pas de réponse du serveur", inline=False)
+        
+        if success:
+            embed.add_field(name="Temps de réponse", value=f"`{response_time}` ms", inline=False)
+        else:
+            embed.add_field(name="Erreur", value="Le ping a échoué. Le serveur pourrait refuser les requêtes ICMP.", inline=False)
 
         embed.set_footer(text="Résultat du ping effectué par le bot.")
         await ctx.respond(embed=embed)
@@ -310,18 +312,28 @@ async def reverse_dns(ctx, ip: str):
         logger.error(f'Erreur lors de l\'exécution de la commande /reverse_dns: {e}')
         await ctx.respond(f"Une erreur s'est produite lors du reverse DNS lookup pour `{ip}`.")
 
+async def check_port(ip, port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.2)
+        result = sock.connect_ex((ip, port))
+        return port if result == 0 else None
+
 @bot.slash_command(name="scan_ports", description="Scanne les ports ouverts sur une adresse IP.")
 async def scan_ports(ctx, ip: str):
     logger.info(f'Commande utilisée: /scan_ports par {ctx.author.name} ({ctx.author.id}) pour l\'IP {ip}')
     await ctx.defer()  
+    
     try:
+        response_time = ping(ip)
+        if response_time is None:
+            await ctx.followup.send(f"L'adresse IP `{ip}` est injoignable. Le scan des ports ne peut pas être effectué.")
+            return
+        
         open_ports = []
-        for port in range(1, 1025):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(0.5)
-                result = sock.connect_ex((ip, port))
-                if result == 0:
-                    open_ports.append(port)
+        tasks = [check_port(ip, port) for port in range(1, 1025)]
+        results = await asyncio.gather(*tasks)
+        
+        open_ports = [port for port in results if port is not None]
 
         if open_ports:
             await ctx.followup.send(f"Les ports ouverts sur `{ip}` sont : `{', '.join(map(str, open_ports))}`.")
@@ -356,7 +368,6 @@ async def http_version(ctx, url: str):
         logger.error(f'Erreur lors de la commande /http_version: {e}')
         embed = discord.Embed(title="Erreur", description=f"Erreur lors de la récupération de la version HTTP pour `{url}`.", color=discord.Color.red())
         await ctx.respond(embed=embed)
-
 
 @bot.slash_command(name="network_latency", description="Tester la latence réseau vers plusieurs serveurs cibles.")
 async def network_latency(ctx):
