@@ -16,6 +16,8 @@ import dns.resolver
 import dns.zone
 import dns.query
 import dns.name
+from scapy.layers.inet import traceroute
+from scapy.all import conf
 
 logging.basicConfig(level=logging.INFO, format='\033[94m%(asctime)s - %(levelname)s - %(message)s\033[0m', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('discord')
@@ -31,6 +33,9 @@ async def on_ready():
 @bot.slash_command(name="whois", description="Obtenir des informations WHOIS pour un domaine.")
 async def whois_command(ctx, domain: str):
     logger.info(f'Commande utilisée: /whois par {ctx.author.name} ({ctx.author.id}) pour le domaine {domain}')
+    
+    await ctx.respond(f"Recherche des informations WHOIS pour `{domain}`... Cela peut prendre un moment.")
+    
     try:
         w = whois.whois(domain)
 
@@ -53,11 +58,11 @@ async def whois_command(ctx, domain: str):
         )
         embed.add_field(name="Informations de contact", value=contact_info if w.emails else "`N/A`", inline=False)
 
-        await ctx.respond(embed=embed)
+        await ctx.edit(content=None, embed=embed)
 
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande WHOIS: {e}')
-        await ctx.respond(f"Une erreur s'est produite lors de la récupération des informations WHOIS pour `{domain}`.")
+        await ctx.edit(content=f"Une erreur s'est produite lors de la récupération des informations WHOIS pour `{domain}`.")
 
 @bot.slash_command(name="userinfo", description="Obtenir des informations sur un utilisateur à l'aide de son identifiant.")
 async def userinfo(ctx, user_id: str):
@@ -85,16 +90,29 @@ async def userinfo(ctx, user_id: str):
 @bot.slash_command(name="ping_ip", description="Ping une adresse IP ou un nom de domaine pour vérifier s'il répond.")
 async def ping_ip(ctx, target: str):
     logger.info(f'Commande utilisée: /ping_ip par {ctx.author.name} ({ctx.author.id}) pour le target {target}')
+    
+    await ctx.respond(f"Ping de `{target}` en cours...")
+
     try:
         try:
             ip = socket.gethostbyname(target)
             domain_resolved = target
         except socket.gaierror:
-            await ctx.respond(f"Erreur: Le nom de domaine ou l'adresse IP `{target}` est invalide ou introuvable.")
+            await ctx.edit(content=f"Erreur: Le nom de domaine ou l'adresse IP `{target}` est invalide ou introuvable.")
             return
 
         response_time = ping(ip)
         success = response_time is not None
+
+        geo_url = f"http://ip-api.com/json/{ip}"
+        geo_response = requests.get(geo_url).json()
+        
+        location_info = (
+            f"**Pays:** {geo_response.get('country', 'N/A')}\n"
+            f"**Région:** {geo_response.get('regionName', 'N/A')}\n"
+            f"**Ville:** {geo_response.get('city', 'N/A')}\n"
+            f"**ISP:** {geo_response.get('isp', 'N/A')}"
+        )
 
         embed = discord.Embed(
             title="Résultat du Ping",
@@ -110,8 +128,14 @@ async def ping_ip(ctx, target: str):
         else:
             embed.add_field(name="Erreur", value="Le ping a échoué. Le serveur pourrait refuser les requêtes ICMP.", inline=False)
 
+        embed.add_field(name="Localisation", value=location_info, inline=False)
+
         embed.set_footer(text="Résultat du ping effectué par le bot.")
-        await ctx.respond(embed=embed)
+        await ctx.edit(content=None, embed=embed)
+
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /ping_ip: {e}')
+        await ctx.edit(content=f"Une erreur s'est produite lors du ping de `{target}`.")
 
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande /ping_ip: {e}')
@@ -382,5 +406,24 @@ async def network_latency(ctx):
     
     embed = discord.Embed(title="Résultats des tests de latence", description="\n".join(results), color=discord.Color.blue())
     await ctx.respond(embed=embed)
+
+@bot.slash_command(name="tracert", description="Déterminer la route vers une IP ou URL.")
+async def tracert(ctx, target: str):
+    logger.info(f'Commande utilisée: /tracert par {ctx.author.name} ({ctx.author.id}) pour le target {target}')
+    
+    try:
+        conf.verb = 0
+        res, unans = traceroute(target, maxttl=30)
+
+        result = ""
+        for snd, rcv in res:
+            result += f"{snd.ttl} {rcv.src}\n"
+        
+        embed = discord.Embed(title=f"Traceroute vers {target}", description=f"```\n{result}\n```", color=discord.Color.blue())
+        await ctx.respond(embed=embed)
+    
+    except Exception as e:
+        logger.error(f'Erreur lors de l\'exécution de la commande /tracert: {e}')
+        await ctx.respond(f"Une erreur s'est produite lors de la tentative de traceroute vers `{target}`.")
 
 bot.run("")
