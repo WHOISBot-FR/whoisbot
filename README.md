@@ -9,6 +9,7 @@ Bienvenue sur le dépôt GitHub de **WHOISBot** ! Ce projet open-source a pour b
 - **Whois Lookup** : Récupérez des informations sur un domaine en utilisant le module `python-whois`.
 - **Ping** : Commande permettant de vérifier si une IP ou un domaine répond au ping.
 - **Userinfo** : Connaître les informations sur un utilisateur Discord.
+- **Décomposition DNS :** Décomposition d'une zone DNS. 
 
 ## Prérequis
 
