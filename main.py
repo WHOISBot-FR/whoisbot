@@ -11,6 +11,7 @@ import time
 import asyncio
 import psutil
 import requests
+import ssl
 from ping3 import ping, verbose_ping
 import dns.resolver
 import dns.zone
@@ -18,6 +19,7 @@ import dns.query
 import dns.name
 from scapy.layers.inet import traceroute
 from scapy.all import conf
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='\033[94m%(asctime)s - %(levelname)s - %(message)s\033[0m', datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('discord')
@@ -425,5 +427,39 @@ async def tracert(ctx, target: str):
     except Exception as e:
         logger.error(f'Erreur lors de l\'exécution de la commande /tracert: {e}')
         await ctx.respond(f"Une erreur s'est produite lors de la tentative de traceroute vers `{target}`.")
+
+@bot.slash_command(name="ssl_check", description="Vérifie les informations SSL d'un domaine")
+async def ssl_check(ctx, domain: str):
+    logger.info(f'Commande utilisée: /ssl_check par {ctx.author.name} ({ctx.author.id})')
+    try:
+        context = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=10) as sock:
+            with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+
+        issuer = dict(x[0] for x in cert['issuer'])
+        issuer_name = issuer.get('organizationName', 'Inconnu')
+        valid_from = datetime.strptime(cert['notBefore'], "%b %d %H:%M:%S %Y %Z")
+        valid_until = datetime.strptime(cert['notAfter'], "%b %d %H:%M:%S %Y %Z")
+        days_left = (valid_until - datetime.utcnow()).days
+        status = "Valide" if days_left > 0 else "Expiré"
+
+        embed = discord.Embed(
+            title=f"Vérification SSL pour {domain}",
+            color=0x00ff00 if status == "Valide" else 0xff0000,
+            timestamp=datetime.utcnow()
+        )
+        embed.add_field(name="Émetteur", value=issuer_name, inline=False)
+        embed.add_field(name="Valide depuis", value=valid_from.strftime("%d/%m/%Y"), inline=True)
+        embed.add_field(name="Expire le", value=valid_until.strftime("%d/%m/%Y"), inline=True)
+        embed.add_field(name="Jours restants", value=str(days_left), inline=True)
+        embed.add_field(name="Statut", value=status, inline=False)
+        embed.set_thumbnail(url="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail_security_checkup_dark_24dp.png")
+        embed.set_footer(text="Vérification SSL")
+
+        await ctx.respond(embed=embed)
+
+    except Exception as e:
+        await ctx.respond(f"Erreur lors de la vérification SSL pour {domain}: {str(e)}", ephemeral=True)        
 
 bot.run("")
