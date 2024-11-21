@@ -48,7 +48,7 @@ async def whois_command(ctx, domain: str):
         embed.add_field(name="Date de création", value=f"`{w.creation_date}`" if w.creation_date else "`N/A`", inline=False)
         embed.add_field(name="Date d'expiration", value=f"`{w.expiration_date}`" if w.expiration_date else "`N/A`", inline=False)
         embed.add_field(name="Serveurs de noms", value=f"`{'`, `'.join(w.name_servers)}`" if w.name_servers else "`N/A`", inline=False)
-        embed.set_footer(text="Ces informations sont fournies par notre prestataire, nous ne garantissons pas la véracité de celle ci.")
+        embed.set_footer(text="Ces informations sont fournies par notre prestataire.")
 
         contact_info = (
             f"**Email:** `{w.emails}`\n"
